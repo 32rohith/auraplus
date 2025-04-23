@@ -505,7 +505,7 @@ export default function Home() {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100, // Reduced from 48000 for faster processing
+          sampleRate: 16000, // Reduced from 48000 for faster processing
           channelCount: 1
         } 
       });
@@ -519,19 +519,19 @@ export default function Home() {
         console.log('Using audio/webm;codecs=opus for recording');
         options = { 
           mimeType: 'audio/webm;codecs=opus',
-          audioBitsPerSecond: 96000 // Reduced from 128000 for faster processing
+          audioBitsPerSecond: 64000 // Reduced from 128000 for faster processing
         };
       } else if (MediaRecorder.isTypeSupported('audio/webm')) {
         console.log('Fallback to audio/webm for recording');
         options = { 
           mimeType: 'audio/webm',
-          audioBitsPerSecond: 96000
+          audioBitsPerSecond: 64000
         };
       } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
         console.log('Fallback to audio/mp4 for recording');
         options = { 
           mimeType: 'audio/mp4',
-          audioBitsPerSecond: 96000
+          audioBitsPerSecond: 64000
         };
       } else {
         console.log('Using default recorder options - no mime type specified');
@@ -566,8 +566,8 @@ export default function Home() {
         // Reduced threshold for faster detection
         if (average < 3) { // Reduced from 5 for quicker silence detection
           silenceCount++;
-          // Detect silence faster - reduced from 10 to 8 checks (800ms vs 1000ms)
-          if (silenceCount > 8) {
+          // Detect silence faster - reduced from 10 to 7 checks (700ms vs 1000ms)
+          if (silenceCount > 7) {
             console.log('Silence detected, stopping recording');
             stopListening();
           }
@@ -607,8 +607,8 @@ export default function Home() {
             const mimeType = (options as { mimeType?: string }).mimeType || 'audio/webm';
             const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
             
-            // Reduced minimum size threshold (from 5000 to 3000 bytes)
-            if (audioBlob.size > 3000) {
+            // Reduced minimum size threshold (from 5000 to 2000 bytes)
+            if (audioBlob.size > 2000) {
               await processAudioWithGoogleSTT(audioBlob);
             } else {
               console.log('Audio too short, not processing');
@@ -620,7 +620,7 @@ export default function Home() {
                 if (sessionActive) {
                   startListening();
                 }
-              }, 300);
+              }, 200);
             }
           }
           
@@ -654,7 +654,7 @@ export default function Home() {
           console.log('Maximum recording time reached, stopping');
           stopListening();
         }
-      }, 10000); // Reduced from 15000 to 10000 (10 seconds max recording time) for faster processing
+      }, 7000); // Reduced from 15000 to 7000 (7 seconds max recording time) for faster processing
       
       if (silenceTimer) {
         clearTimeout(silenceTimer);
@@ -662,7 +662,7 @@ export default function Home() {
       setSilenceTimer(maxRecordingTime);
       
       // Start recording with smaller data chunks for more frequent processing
-      mediaRecorder.start(500); // Reduced from 1000ms to 500ms for more frequent data collection
+      mediaRecorder.start(300); // Reduced from 1000ms to 300ms for more frequent data collection
       
     } catch (error) {
       console.error('Error starting audio recording:', error);
