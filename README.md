@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aura Plus - AI Therapist Platform
+
+## Overview
+Aura Plus is an AI-powered therapist platform that provides secure, interactive voice-based therapy sessions with real-time analysis.
+
+## Features
+- 🔐 Secure Authentication
+- 🎙️ Interactive Voice Sessions
+- 📝 Session History Tracking
+- 🧠 Mental Health Analysis
+- 💬 Real-time Communication
+
+## Tech Stack
+- **Frontend**: Next.js, Tailwind CSS, Framer Motion
+- **Backend**: Firebase (Authentication & Data Storage)
+- **Real-time**: Socket.IO
+- **AI/ML**: 
+  - Google Generative AI Studio (STT, LLM)
+  - Google Cloud Text-to-Speech (TTS)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js (v18 or newer)
+- npm or yarn
+- Firebase account
+- Google Cloud TTS API key
 
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/aura-plus.git
+cd aura-plus
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+Create a `.env.local` file in the root directory with the following:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
 
-## Learn More
+# Google AI Studio API Key
+NEXT_PUBLIC_GOOGLE_AI_STUDIO_API_KEY=your_google_api_key
+```
 
-To learn more about Next.js, take a look at the following resources:
+4. Start the development server:
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
+```
+aura-plus/
+├── src/                    # Source code
+│   ├── app/                # Next.js app router
+│   │   ├── page.tsx        # Main application page
+│   │   ├── layout.tsx      # Root layout
+│   │   └── api/            # API routes
+│   │       ├── gemini/     # Gemini proxy
+│   │       └── tts/        # Text-to-Speech proxy
+│   ├── components/         # Reusable components
+│   │   ├── AuthForm.tsx    # Authentication form
+│   │   ├── TherapistCircle.tsx # AI circle interface
+│   │   └── SessionHistory.tsx # Session history display
+│   └── lib/                # Utility functions
+│       ├── firebase/       # Firebase configuration
+│       └── supabase/       # Supabase configuration
+├── public/                 # Static assets
+└── .env.local              # Environment variables
+```
 
-## Deploy on Vercel
+## License
+This project is licensed under the MIT License.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Acknowledgments
+- Inspired by calmi.so and gallereee.framer.website
+- Built with Next.js, Firebase, and Supabase
+- Powered by Google Generative AI Studio and Google Cloud Text-to-Speech
