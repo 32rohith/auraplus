@@ -505,7 +505,7 @@ export default function Home() {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000, // Reduced from 48000 for faster processing
+          sampleRate: 48000,
           channelCount: 1
         } 
       });
@@ -514,24 +514,24 @@ export default function Home() {
       // Check for codec support and use fallbacks if needed
       let options = {};
       
-      // Test mime type support - prioritize formats that process faster
+      // Test mime type support
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         console.log('Using audio/webm;codecs=opus for recording');
         options = { 
           mimeType: 'audio/webm;codecs=opus',
-          audioBitsPerSecond: 64000 // Reduced from 128000 for faster processing
+          audioBitsPerSecond: 128000
         };
       } else if (MediaRecorder.isTypeSupported('audio/webm')) {
         console.log('Fallback to audio/webm for recording');
         options = { 
           mimeType: 'audio/webm',
-          audioBitsPerSecond: 64000
+          audioBitsPerSecond: 128000
         };
       } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
         console.log('Fallback to audio/mp4 for recording');
         options = { 
           mimeType: 'audio/mp4',
-          audioBitsPerSecond: 64000
+          audioBitsPerSecond: 128000
         };
       } else {
         console.log('Using default recorder options - no mime type specified');
@@ -551,7 +551,7 @@ export default function Home() {
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
       
-      // Function to detect silence - optimized thresholds for faster detection
+      // Function to detect silence
       const checkSilence = () => {
         if (!isRecording || isProcessing || isSpeaking) return;
         
@@ -563,11 +563,9 @@ export default function Home() {
         const average = sum / bufferLength;
         
         // If average volume is below threshold, consider it silence
-        // Reduced threshold for faster detection
-        if (average < 3) { // Reduced from 5 for quicker silence detection
+        if (average < 5) {
           silenceCount++;
-          // Detect silence faster - reduced from 10 to 7 checks (700ms vs 1000ms)
-          if (silenceCount > 7) {
+          if (silenceCount > 10) { // About 1 second of silence (checked every 100ms)
             console.log('Silence detected, stopping recording');
             stopListening();
           }
@@ -577,8 +575,7 @@ export default function Home() {
       };
       
       let silenceCount = 0;
-      // Check more frequently (every 80ms instead of 100ms)
-      const silenceInterval = setInterval(checkSilence, 80);
+      const silenceInterval = setInterval(checkSilence, 100);
       
       // Event handlers for the MediaRecorder
       mediaRecorder.onstart = () => {
@@ -607,20 +604,20 @@ export default function Home() {
             const mimeType = (options as { mimeType?: string }).mimeType || 'audio/webm';
             const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
             
-            // Reduced minimum size threshold (from 5000 to 2000 bytes)
-            if (audioBlob.size > 2000) {
+            // Check if there's enough audio data (minimum 500ms)
+            if (audioBlob.size > 5000) {
               await processAudioWithGoogleSTT(audioBlob);
             } else {
               console.log('Audio too short, not processing');
               setIsListening(false);
               setIsProcessing(false);
               
-              // Restart listening after a shorter delay (300ms instead of 500ms)
+              // Restart listening after a short delay
               setTimeout(() => {
                 if (sessionActive) {
                   startListening();
                 }
-              }, 200);
+              }, 500);
             }
           }
           
@@ -632,11 +629,11 @@ export default function Home() {
           setIsListening(false);
           setIsProcessing(false);
           
-          // If there's an error, try to recover with a shorter delay (1000ms instead of 2000ms)
+          // If there's an error, try to recover
           if (sessionActive && !isProcessing && !isSpeaking) {
             setTimeout(() => {
               startListening();
-            }, 1000);
+            }, 2000);
           }
         }
       };
@@ -654,15 +651,15 @@ export default function Home() {
           console.log('Maximum recording time reached, stopping');
           stopListening();
         }
-      }, 7000); // Reduced from 15000 to 7000 (7 seconds max recording time) for faster processing
+      }, 15000); // 15 seconds max recording time
       
       if (silenceTimer) {
         clearTimeout(silenceTimer);
       }
       setSilenceTimer(maxRecordingTime);
       
-      // Start recording with smaller data chunks for more frequent processing
-      mediaRecorder.start(300); // Reduced from 1000ms to 300ms for more frequent data collection
+      // Start recording with larger data chunks
+      mediaRecorder.start(1000); // Collect data every second
       
     } catch (error) {
       console.error('Error starting audio recording:', error);
@@ -671,48 +668,25 @@ export default function Home() {
     }
   };
   
-  // Process audio with Google Cloud STT - optimized for latency
+  // Process audio with Google Cloud STT
   const processAudioWithGoogleSTT = async (audioBlob: Blob) => {
     try {
       setIsProcessing(true);
       
-      // Compress the audio blob if it's large to speed up transmission
-      let processedBlob = audioBlob;
-      if (audioBlob.size > 100000) { // Only compress if larger than 100KB
-        try {
-          // This is a placeholder - in a real implementation you'd use a proper audio compression library
-          console.log('Large audio blob detected, would compress in production implementation');
-          // processedBlob = await compressAudio(audioBlob);
-        } catch (compressionError) {
-          console.warn('Audio compression failed, using original blob:', compressionError);
-        }
-      }
-      
       // Get the current origin to ensure the correct port is used
       const apiUrl = `${window.location.origin}/api/stt`;
       console.log('Calling STT API at:', apiUrl);
-      console.log('Audio blob size:', processedBlob.size, 'bytes');
-      console.log('Audio blob type:', processedBlob.type);
+      console.log('Audio blob size:', audioBlob.size, 'bytes');
+      console.log('Audio blob type:', audioBlob.type);
       
-      // Use AbortController to set a timeout on the fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000); // 7 second timeout
-      
-      // Call our backend API endpoint with optimized fetch options
+      // Call our backend API endpoint
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': processedBlob.type || 'audio/webm',
-          'Priority': 'high' // Signal high priority to browser
+          'Content-Type': audioBlob.type || 'audio/webm'
         },
-        body: processedBlob,
-        signal: controller.signal,
-        // Cache: 'no-store', // Ensure fresh responses
-        // Mode: 'cors', // Ensure CORS is respected
-        keepalive: true // Keep connection alive for better performance
+        body: audioBlob
       });
-      
-      clearTimeout(timeoutId); // Clear the timeout if the request completes
       
       if (!response.ok) {
         // Try to get detailed error information
@@ -740,12 +714,12 @@ export default function Home() {
         console.log('Empty transcript received, restarting listening');
         setIsProcessing(false);
         
-        // Start listening again after a shorter delay (300ms instead of 500ms)
+        // Start listening again after a short delay
         setTimeout(() => {
           if (sessionActive) {
             startListening();
           }
-        }, 300);
+        }, 500);
         return;
       }
       
@@ -761,21 +735,37 @@ export default function Home() {
       setIsProcessing(false);
       setIsListening(false);
       
-      // Display error as toast with shorter duration
+      // Display error as toast
       toast.error("Sorry, there was an error processing your speech. Please try again.", {
-        duration: 3000, // Reduced from 4000 for less interruption
+        duration: 4000,
       });
       
-      // Try to restart listening after a shorter delay (1000ms instead of 2000ms)
+      // Try to restart listening after a delay
       setTimeout(() => {
         if (sessionActive) {
           startListening();
         }
-      }, 1000);
+      }, 2000);
     }
   };
 
-  // Update the processTranscript function for lower latency
+  // Update the stopListening function
+  const stopListening = () => {
+    console.log('Stopping audio recording...');
+    // Stop the MediaRecorder if it exists and is recording
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    setIsListening(false);
+    
+    if (silenceTimer) {
+      clearTimeout(silenceTimer);
+      setSilenceTimer(null);
+    }
+  };
+
+  // Update the processTranscript function (keep most of its logic)
   const processTranscript = (text: string) => {
     if (!text.trim()) return;
     
@@ -794,11 +784,266 @@ export default function Home() {
     setInterimTranscript('');
     setTranscript('');
     
-    // Get AI response immediately instead of waiting (removed the 500ms delay)
-    getAIResponse(userMessage);
+    // Get AI response after a small delay for better visual feedback
+    setTimeout(() => {
+      getAIResponse(userMessage);
+    }, 500);
   };
 
-  // Update the getAIResponse function for faster AI responses
+  // When the toggle microphone button is clicked
+  const toggleMicrophone = () => {
+    // Prevent toggle actions during processing
+    if (isProcessing) {
+      console.log('Cannot toggle microphone while processing');
+      return;
+    }
+
+    // If speaking, allow stopping the speech
+    if (isSpeaking) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsSpeaking(false);
+      
+      // Wait a moment before allowing listening to start
+      setTimeout(() => {
+        startListening();
+      }, 300);
+      return;
+    }
+    
+    // Toggle listening state
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  const generateBrowserTTS = (text: string) => {
+    console.log('=== FALLBACK TTS: Using browser speech synthesis ===');
+    
+    // Ensure states are set properly for indicators
+    setIsProcessing(false);
+    setIsListening(false);
+    
+    if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech first
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.volume = volume;
+      utterance.rate = 0.95;  // Slightly slower for better comprehension
+      utterance.pitch = 1.0; // Normal pitch
+      
+      // Make sure voices are loaded - this can be async in some browsers
+      let voices = window.speechSynthesis.getVoices();
+      
+      // In some browsers, voices might not be loaded immediately
+      if (voices.length === 0) {
+        console.log('No voices available yet, waiting for voices to load');
+        
+        // Set a timeout to wait for voices
+        const waitForVoices = setTimeout(() => {
+          voices = window.speechSynthesis.getVoices();
+          console.log('Voices loaded:', voices.length);
+          selectAndSpeak(voices);
+        }, 1000);
+        
+        // Also try the onvoiceschanged event if available
+        if ('onvoiceschanged' in window.speechSynthesis) {
+          window.speechSynthesis.onvoiceschanged = () => {
+            clearTimeout(waitForVoices);
+            voices = window.speechSynthesis.getVoices();
+            console.log('Voices changed event fired. Voices loaded:', voices.length);
+            selectAndSpeak(voices);
+          };
+        }
+      } else {
+        console.log('Voices already available:', voices.length);
+        selectAndSpeak(voices);
+      }
+      
+      // Function to select voice and start speaking
+      function selectAndSpeak(availableVoices: SpeechSynthesisVoice[]) {
+        console.log('Available browser voices:', availableVoices.map(v => v.name).join(', '));
+        
+        // Try to find a female voice, preferring ones with "female" in the name
+        const femaleVoice = availableVoices.find(voice => 
+          voice.name.toLowerCase().includes('female') || 
+          voice.name.includes('Samantha') ||
+          voice.name.includes('Google UK English Female') ||
+          voice.name.includes('Microsoft Zira')
+        );
+        
+        if (femaleVoice) {
+          console.log('Selected female voice:', femaleVoice.name);
+          utterance.voice = femaleVoice;
+        } else if (availableVoices.length > 0) {
+          // If no female voice found, just use the first available voice
+          console.log('No female voice found, using first available voice:', availableVoices[0].name);
+          utterance.voice = availableVoices[0];
+        }
+        
+        utterance.onend = () => {
+          console.log('Browser TTS finished speaking');
+          setIsSpeaking(false);
+          setShowAiResponse(true); // Keep the response visible after speaking
+          
+          // Add a slight delay before starting to listen again
+          setTimeout(() => {
+            if (sessionActive) {
+              console.log('Starting to listen again after speech finished');
+              startListening();
+            }
+          }, 800); // Reduced slightly from 1000ms for better flow
+        };
+        
+        utterance.onerror = (error) => {
+          console.error('Browser TTS error:', error);
+          setIsSpeaking(false);
+          setShowAiResponse(true); // Still show the response even if speech fails
+          
+          // Still try to resume listening
+          setTimeout(() => {
+            if (sessionActive) {
+              startListening();
+            }
+          }, 800);
+        };
+        
+        setIsSpeaking(true);
+        
+        // Show the AI response right before starting to speak
+        setShowAiResponse(true);
+        
+        // Use a small timeout to ensure UI updates before speech starts
+        setTimeout(() => {
+          try {
+            window.speechSynthesis.speak(utterance);
+          } catch (err) {
+            console.error('Failed to start browser TTS:', err);
+            setIsSpeaking(false);
+            // Still try to resume listening
+            setTimeout(() => {
+              if (sessionActive) {
+                startListening();
+              }
+            }, 800);
+          }
+        }, 100);
+      }
+    } else {
+      console.warn('Browser does not support speech synthesis');
+      setIsSpeaking(false);
+      setShowAiResponse(true); // Show the response even if we can't speak it
+      
+      setTimeout(() => {
+        if (sessionActive) {
+          startListening();
+        }
+      }, 800);
+    }
+  };
+
+  // Primary speech function using Google Cloud TTS with browser fallback
+  const generateSpeech = async (text: string) => {
+    try {
+      console.log('=== PRIMARY TTS: GOOGLE CLOUD TTS REQUEST ===');
+      console.log('Text to convert:', text);
+      
+      // Set both processing and not listening to show correct indicators
+      setIsProcessing(true);
+      setIsListening(false);
+      
+      // Clean up previous audio resources before creating new ones
+      if (audioRef.current) {
+        // Stop any current playback
+        audioRef.current.pause();
+        
+        // Reset URL to release memory
+        try {
+          URL.revokeObjectURL(audioRef.current.src);
+        } catch (e) {
+          console.log('No need to revoke URL', e);
+        }
+        audioRef.current.src = '';
+      }
+      
+      // Get the current origin to ensure the correct port is used
+      const apiUrl = `${window.location.origin}/api/tts`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text,
+          voice: {
+            name: "en-US-Chirp3-HD-Achernar",
+            languageCode: "en-US",
+            ssmlGender: "FEMALE"
+          },
+          audioConfig: {
+            audioEncoding: "MP3",
+            effectsProfileId: ["small-bluetooth-speaker-class-device"],
+            pitch: 0.0,
+            speakingRate: 0.95 // Slightly slower for better comprehension
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Google TTS API error:', errorData);
+        throw new Error(`API error (${response.status}): ${errorData.error || 'Unknown error'}`);
+      }
+      
+      // Get audio data and play it
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.volume = volume;
+        
+        // Show the AI response right before starting to speak
+        setShowAiResponse(true);
+        
+        // Start speaking after a short pause - update state cleanly
+        setTimeout(() => {
+          // Set indicators in the correct order
+          setIsSpeaking(true);
+          setIsProcessing(false);
+          
+          console.log('Playing Google Cloud TTS audio response...');
+          audioRef.current?.play().catch(error => {
+            console.error('Error playing audio:', error);
+            // Clean up states on error
+            setIsSpeaking(false);
+            setIsProcessing(false);
+            setShowAiResponse(true); // Still show the text response if audio fails
+            
+            setTimeout(() => {
+              if (sessionActive) {
+                startListening();
+              }
+            }, 500);
+          });
+        }, 200); // Reduced slightly for more responsive experience
+      }
+    } catch (ttsError) {
+      console.error('Google Cloud TTS error, falling back to browser TTS:', ttsError);
+      // Fall back to browser TTS when Google Cloud TTS fails
+      generateBrowserTTS(text);
+    }
+  };
+
   const getAIResponse = async (userMessage: string) => {
     try {
       // Get AI response
@@ -809,32 +1054,22 @@ export default function Home() {
         
         // Prepare conversation history with only the necessary context
         // This ensures we're not sending duplicate or unnecessary messages
-        // Further reduced history context from 10 to 6 messages for faster processing
-        const conversationHistory = sessionHistory.slice(-6);
+        const conversationHistory = sessionHistory.slice(-10); // Keep only recent messages for context
         
         // Get the current origin to ensure the correct port is used
         const apiUrl = `${window.location.origin}/api/gemini`;
-        
-        // Use AbortController to set a timeout on the fetch request
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Priority': 'high' // Signal high priority to browser
           },
           body: JSON.stringify({
             prompt: userMessage,
             middlePrompt: DEVELOPER_MIDDLE_PROMPT,
             history: conversationHistory // Pass only recent history for context
           }),
-          signal: controller.signal,
-          keepalive: true // Keep connection alive for better performance
         });
-        
-        clearTimeout(timeoutId); // Clear the timeout if the request completes
         
         if (!response.ok) {
           throw new Error(`API responded with status ${response.status}`);
@@ -891,239 +1126,7 @@ export default function Home() {
       generateBrowserTTS(fallbackResponse);
     }
   };
-
-  // Update the generateSpeech function for faster TTS responses
-  const generateSpeech = async (text: string) => {
-    try {
-      console.log('=== PRIMARY TTS: GOOGLE CLOUD TTS REQUEST ===');
-      console.log('Text to convert:', text);
-      
-      // Set both processing and not listening to show correct indicators
-      setIsProcessing(true);
-      setIsListening(false);
-      
-      // Clean up previous audio resources before creating new ones
-      if (audioRef.current) {
-        // Stop any current playback
-        audioRef.current.pause();
-        
-        // Reset URL to release memory
-        try {
-          URL.revokeObjectURL(audioRef.current.src);
-        } catch (e) {
-          console.log('No need to revoke URL', e);
-        }
-        audioRef.current.src = '';
-      }
-      
-      // Get the current origin to ensure the correct port is used
-      const apiUrl = `${window.location.origin}/api/tts`;
-      
-      // Use AbortController to set a timeout on the fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Priority': 'high' // Signal high priority to browser
-        },
-        body: JSON.stringify({
-          text,
-          voice: {
-            name: "en-US-Chirp3-HD-Achernar",
-            languageCode: "en-US",
-            ssmlGender: "FEMALE"
-          },
-          audioConfig: {
-            audioEncoding: "MP3", // MP3 is typically faster to process than other formats
-            effectsProfileId: ["small-bluetooth-speaker-class-device"],
-            pitch: 0.0,
-            speakingRate: 1.0 // Increased from 0.95 to 1.0 for slightly faster speech
-          }
-        }),
-        signal: controller.signal,
-        keepalive: true // Keep connection alive for better performance
-      });
-      
-      clearTimeout(timeoutId); // Clear the timeout if the request completes
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Google TTS API error:', errorData);
-        throw new Error(`API error (${response.status}): ${errorData.error || 'Unknown error'}`);
-      }
-      
-      // Get audio data and play it
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.volume = volume;
-        
-        // Show the AI response right before starting to speak
-        setShowAiResponse(true);
-        
-        // Preload the audio for faster playback
-        audioRef.current.preload = "auto";
-        
-        // Use preloading approach for faster audio start
-        audioRef.current.oncanplaythrough = () => {
-          // Start speaking without delay - update state cleanly
-          setIsSpeaking(true);
-          setIsProcessing(false);
-          
-          console.log('Playing Google Cloud TTS audio response...');
-          audioRef.current?.play().catch(error => {
-            console.error('Error playing audio:', error);
-            // Clean up states on error
-            setIsSpeaking(false);
-            setIsProcessing(false);
-            setShowAiResponse(true); // Still show the text response if audio fails
-            
-            setTimeout(() => {
-              if (sessionActive) {
-                startListening();
-              }
-            }, 300); // Reduced from 500ms for faster recovery
-          });
-        };
-      }
-    } catch (ttsError) {
-      console.error('Google Cloud TTS error, falling back to browser TTS:', ttsError);
-      // Fall back to browser TTS when Google Cloud TTS fails
-      generateBrowserTTS(text);
-    }
-  };
-
-  // Update generateBrowserTTS for faster browser TTS responses
-  const generateBrowserTTS = (text: string) => {
-    console.log('=== FALLBACK TTS: Using browser speech synthesis ===');
-    
-    // Ensure states are set properly for indicators
-    setIsProcessing(false);
-    setIsListening(false);
-    
-    if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech first
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.volume = volume;
-      utterance.rate = 1.0;  // Increased from 0.95 to normal rate for faster response
-      utterance.pitch = 1.0; // Normal pitch
-      
-      // Make sure voices are loaded - this can be async in some browsers
-      let voices = window.speechSynthesis.getVoices();
-      
-      // In some browsers, voices might not be loaded immediately
-      if (voices.length === 0) {
-        console.log('No voices available yet, waiting for voices to load');
-        
-        // Set a timeout to wait for voices - reduced timeout from 1000ms to 500ms
-        const waitForVoices = setTimeout(() => {
-          voices = window.speechSynthesis.getVoices();
-          console.log('Voices loaded:', voices.length);
-          selectAndSpeak(voices);
-        }, 500);
-        
-        // Also try the onvoiceschanged event if available
-        if ('onvoiceschanged' in window.speechSynthesis) {
-          window.speechSynthesis.onvoiceschanged = () => {
-            clearTimeout(waitForVoices);
-            voices = window.speechSynthesis.getVoices();
-            console.log('Voices changed event fired. Voices loaded:', voices.length);
-            selectAndSpeak(voices);
-          };
-        }
-      } else {
-        console.log('Voices already available:', voices.length);
-        selectAndSpeak(voices);
-      }
-      
-      // Function to select voice and start speaking
-      function selectAndSpeak(availableVoices: SpeechSynthesisVoice[]) {
-        console.log('Available browser voices:', availableVoices.map(v => v.name).join(', '));
-        
-        // Try to find a female voice, preferring ones with "female" in the name
-        const femaleVoice = availableVoices.find(voice => 
-          voice.name.toLowerCase().includes('female') || 
-          voice.name.includes('Samantha') ||
-          voice.name.includes('Google UK English Female') ||
-          voice.name.includes('Microsoft Zira')
-        );
-        
-        if (femaleVoice) {
-          console.log('Selected female voice:', femaleVoice.name);
-          utterance.voice = femaleVoice;
-        } else if (availableVoices.length > 0) {
-          // If no female voice found, just use the first available voice
-          console.log('No female voice found, using first available voice:', availableVoices[0].name);
-          utterance.voice = availableVoices[0];
-        }
-        
-        utterance.onend = () => {
-          console.log('Browser TTS finished speaking');
-          setIsSpeaking(false);
-          setShowAiResponse(true); // Keep the response visible after speaking
-          
-          // Add a slight delay before starting to listen again - reduced from 800ms to 500ms
-          setTimeout(() => {
-            if (sessionActive) {
-              console.log('Starting to listen again after speech finished');
-              startListening();
-            }
-          }, 500);
-        };
-        
-        utterance.onerror = (error) => {
-          console.error('Browser TTS error:', error);
-          setIsSpeaking(false);
-          setShowAiResponse(true); // Still show the response even if speech fails
-          
-          // Still try to resume listening - reduced from 800ms to 500ms
-          setTimeout(() => {
-            if (sessionActive) {
-              startListening();
-            }
-          }, 500);
-        };
-        
-        setIsSpeaking(true);
-        
-        // Show the AI response right before starting to speak
-        setShowAiResponse(true);
-        
-        // Immediately start speech instead of using a timeout
-        try {
-          window.speechSynthesis.speak(utterance);
-        } catch (err) {
-          console.error('Failed to start browser TTS:', err);
-          setIsSpeaking(false);
-          // Still try to resume listening - reduced delay
-          setTimeout(() => {
-            if (sessionActive) {
-              startListening();
-            }
-          }, 500);
-        }
-      }
-    } else {
-      console.warn('Browser does not support speech synthesis');
-      setIsSpeaking(false);
-      setShowAiResponse(true); // Show the response even if we can't speak it
-      
-      // Reduced delay from 800ms to 500ms
-      setTimeout(() => {
-        if (sessionActive) {
-          startListening();
-        }
-      }, 500);
-    }
-  };
-
+  
   const beginSession = () => {
     // Check if user has sessions remaining in their subscription
     if (userSubscription && userSubscription.sessions_used >= userSubscription.sessions_limit) {
@@ -1581,8 +1584,57 @@ export default function Home() {
               )}
             </div>
           </div>
+        );
+    }
+  };
+
+  return (
+    <div className="app-container">
+      {isAuthenticated && (
+        <Sidebar 
+          activeSection={activeSection} 
+          setActiveSection={setActiveSection}
+          onSignOut={() => auth.signOut()}
+          isAuthenticated={isAuthenticated}
+          userName={user?.displayName || user?.email?.split('@')[0]}
+          subscription={userSubscription || undefined}
+        />
+      )}
+      <main className="main-content">
+        {renderActiveSection()}
+      </main>
+      
+      {/* Subscription Limit Error Modal */}
+      {subscriptionError && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card p-6 rounded-lg border border-border shadow-lg max-w-md w-full"
+          >
+            <h3 className="text-xl font-bold mb-4 text-destructive">Session Limit Reached</h3>
+            <p className="mb-6">{subscriptionError}</p>
+            
+            <div className="flex gap-4">
+              <button
+                onClick={() => setSubscriptionError(null)}
+                className="flex-1 py-2 px-4 bg-muted hover:bg-muted/80 rounded"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setSubscriptionError(null);
+                  setActiveSection('settings');
+                }}
+                className="flex-1 py-2 px-4 bg-primary text-primary-foreground hover:bg-primary/90 rounded"
+              >
+                Upgrade Plan
+              </button>
+            </div>
+          </motion.div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
